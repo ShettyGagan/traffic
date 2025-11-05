@@ -23,26 +23,24 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
+
 app = FastAPI()
 
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
-# ===== MODELS =====
 
 class Incident(BaseModel):
     model_config = ConfigDict(extra="ignore")
     
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    type: str  # traffic_jam, accident, road_work, emergency
-    severity: str  # low, medium, high
+    type: str  
+    severity: str  
     description: str
     lat: float
     lng: float
     photo_url: Optional[str] = None
     reporter_name: Optional[str] = "Anonymous"
-    status: str = "active"  # active, resolved
+    status: str = "active"  
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class IncidentCreate(BaseModel):
@@ -71,8 +69,8 @@ class TrafficSignal(BaseModel):
     location: str
     lat: float
     lng: float
-    current_state: str  # RED, YELLOW, GREEN
-    traffic_density: int  # 0-100
+    current_state: str 
+    traffic_density: int  
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class TrafficSimulation(BaseModel):
@@ -81,7 +79,7 @@ class TrafficSimulation(BaseModel):
     avg_speed: float
     emergency_vehicle_detected: bool = False
 
-# ===== ROUTE ANALYSIS AGENT =====
+
 
 class RouteAnalysisAgent:
     """
@@ -115,28 +113,26 @@ class RouteAnalysisAgent:
         else:
             return await self._real_analysis(incident, traffic_signals)
     
+    #mock analysis
     async def _mock_analysis(self, incident: Incident) -> RouteAnalysis:
-        """
-        Mock analysis with realistic data
-        Used when API keys are not configured
-        """
-        # Simulate processing time
+        
+       
         await asyncio.sleep(0.5)
         
-        # Analyze incident context
+        
         context = self._analyze_incident_context(incident)
         
-        # Generate route options based on incident type and severity
+        
         route_options = self._get_contextual_routes(incident)
         
-        # Calculate distances
+        
         distances = {
             "safe": round(random.uniform(10, 15), 1),
             "eco": round(random.uniform(8, 12), 1),
             "fast": round(random.uniform(6, 10), 1),
         }
         
-        # Generate AI message
+        
         ai_message = self._generate_ai_message(incident, context)
         
         return RouteAnalysis(
@@ -152,7 +148,7 @@ class RouteAnalysisAgent:
             start_coords = (incident.lng - 0.02, incident.lat - 0.02)
             end_coords = (incident.lng + 0.02, incident.lat + 0.02)
 
-            # If ORS key is available, attempt to compute real routes, otherwise skip
+            
             if self.ors_api_key:
                 try:
                     ors_result = self.ors_client.directions(
@@ -266,22 +262,14 @@ class RouteAnalysisAgent:
         
         return severity_prefix.get(incident.severity, "") + base_message
 
-# Initialize the analysis agent
+# analysis agent
 route_agent = RouteAnalysisAgent()
 
-# ===== INCIDENT ENDPOINTS =====
+
 
 @api_router.post("/incidents", response_model=Incident)
 async def create_incident(input: IncidentCreate):
-    """
-    Create new incident and trigger intelligent route analysis
     
-    Process:
-    1. Store incident in database
-    2. Trigger RouteAnalysisAgent for optimal routes
-    3. Update traffic signals if high severity
-    4. Return incident with analysis status
-    """
     incident_obj = Incident(**input.model_dump())
     
     doc = incident_obj.model_dump()
@@ -289,13 +277,13 @@ async def create_incident(input: IncidentCreate):
     
     await db.incidents.insert_one(doc)
     
-    # Trigger intelligent route analysis agent
+    
     logger.info(f"Analyzing incident {incident_obj.id} with RouteAnalysisAgent")
     
-    # Get current traffic signals for context
+    # Get current traffic signals 
     signals = await db.traffic_signals.find({}, {"_id": 0}).to_list(100)
     
-    # Run analysis
+    # Runing analysis
     route_analysis = await route_agent.analyze_incident(incident_obj, signals)
     
     # Store analysis results
@@ -305,7 +293,7 @@ async def create_incident(input: IncidentCreate):
     
     logger.info(f"Route analysis complete for incident {incident_obj.id}")
     
-    # Update traffic signals if high severity
+    # Updating traffic signals if high severity
     if incident_obj.severity == "high":
         await update_signals_for_emergency(incident_obj.lat, incident_obj.lng)
         logger.warning(f"High severity incident! Emergency signal protocol activated.")
@@ -350,7 +338,6 @@ async def get_incident_routes(incident_id: str):
     
     return route
 
-# ===== TRAFFIC SIGNAL ENDPOINTS =====
 
 @api_router.get("/signals", response_model=List[TrafficSignal])
 async def get_signals():
@@ -387,17 +374,15 @@ async def initialize_signals():
 
 @api_router.post("/simulate/traffic")
 async def simulate_traffic(sim: TrafficSimulation):
-    """
-    Simulate traffic data for a road - updates signal state based on density
-    """
+    
     signal = await db.traffic_signals.find_one({"signal_id": sim.road_id})
     
     if not signal:
         raise HTTPException(status_code=404, detail="Signal not found")
     
-    # Determine signal state based on traffic density
+    # Determining signal state based on traffic density
     if sim.emergency_vehicle_detected:
-        new_state = "GREEN"  # Green wave for emergency vehicles
+        new_state = "GREEN"  
     elif sim.traffic_density > 80:
         new_state = "RED"
     elif sim.traffic_density > 50:
@@ -417,10 +402,8 @@ async def simulate_traffic(sim: TrafficSimulation):
     return {"signal_id": sim.road_id, "new_state": new_state, "density": sim.traffic_density}
 
 async def update_signals_for_emergency(lat: float, lng: float):
-    """
-    Update nearby signals to GREEN when emergency incident is detected
-    """
-    # Simple mock: Update all signals with high density to GREEN
+    
+    
     await db.traffic_signals.update_many(
         {"traffic_density": {"$gt": 70}},
         {"$set": {
@@ -428,8 +411,6 @@ async def update_signals_for_emergency(lat: float, lng: float):
             "last_updated": datetime.now(timezone.utc).isoformat()
         }}
     )
-
-# ===== STATISTICS =====
 
 @api_router.get("/stats")
 async def get_stats():
@@ -443,13 +424,13 @@ async def get_stats():
         "high_severity_count": high_severity
     }
 
-# ===== ROOT =====
+
 
 @api_router.get("/")
 async def root():
     return {"message": "Disha - Smart Traffic Management API", "version": "1.0.0"}
 
-# Include the router in the main app
+
 app.include_router(api_router)
 
 app.add_middleware(

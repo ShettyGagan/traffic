@@ -59,7 +59,7 @@ const ContributePage = () => {
       toast.success("Incident reported successfully! 🎉");
       toast.info("AI analyzing optimal routes...", { duration: 2000 });
       
-      // Wait a moment for route analysis to complete
+      
       await new Promise(resolve => setTimeout(resolve, 1500));
       
       // Fetch route analysis
